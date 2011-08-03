@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from copy import deepcopy
 from urllib import urlencode
 
 BOOLEAN_MAP = {
@@ -32,6 +33,7 @@ class Pencil(object):
         self._lineWidth = None
         self._graphType = "line"
         self._format = None
+        self._labels = []
 
     def begin(self, value):
         self._from = value
@@ -135,7 +137,7 @@ class Pencil(object):
         self._bgcolor = color
         return self
 
-    def add_metric(self, metric, colors=""):
+    def add_metric(self, metric, colors="", label=""):
         """
         Add a metric to image, may be either a graphite path
         or a function (such as avg)
@@ -145,6 +147,10 @@ class Pencil(object):
             self._colorList = ",".join([color 
                 for color in (self._colorList.split(",") + colors.split(","))
                 if color])
+        if label:
+            self._labels.append(label)
+        else:
+            self._labels.append(metric)
         return self
 
     def graph_type(self, value):
@@ -156,9 +162,9 @@ class Pencil(object):
         self._graphType = value
         return self
 
-    def add_deploy(self, deploy, colors=""):
+    def add_deploy(self, deploy, colors="", label=""):
         """Add a deploy metric"""
-        self.add_metric("drawAsInfinite(%s)" % deploy, colors)
+        self.add_metric("drawAsInfinite(%s)" % deploy, colors, label)
         return self
 
     def format(self, value):
@@ -171,8 +177,15 @@ class Pencil(object):
         return self
 
     def _build_params(self):
-        return dict([(key[1:], value)
-            for key, value in self.__dict__.iteritems() if value])
+        _orig_target = deepcopy(self._target)
+        self._target = ['alias(%s,"%s")' % (metric, self._labels[i])
+            for i, metric in list(enumerate(self._target))
+            if metric != self._labels[i]]
+        params = dict([(key[1:], value)
+            for key, value in self.__dict__.iteritems()
+            if value and key != '_labels'])
+        self._target = _orig_target
+        return params
 
     def url(self, base, width, height):
         """Return image url based on the given URL for Graphite"""
